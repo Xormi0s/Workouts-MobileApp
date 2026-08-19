@@ -1,63 +1,36 @@
-import {ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import {Pressable, StyleSheet, Text, TextInput, View} from "react-native";
 import {SafeAreaView} from "react-native-safe-area-context";
-import {useEffect, useState} from "react";
+import {useState} from "react";
 import * as SecureStore from "expo-secure-store";
 import {router} from "expo-router";
 
 const API_URL = "http://192.168.0.208:8080/api/v1/auth";
 
-export default function Index() {
+export default function Register() {
+
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [checkingAuth, setCheckingAuth] = useState<boolean>(true);
 
-    useEffect(() => {
-
-        async function autoLogin(){
-            const storedRefreshToken = await SecureStore.getItemAsync("refreshToken");
-            const storedUsername = await SecureStore.getItemAsync("username");
-
-            if(!storedRefreshToken || !storedUsername){
-                setCheckingAuth(false);
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_URL}/refresh`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ refreshToken: storedRefreshToken }),
-                });
-
-                if(!response.ok) {
-                    await SecureStore.deleteItemAsync("accessToken");
-                    await SecureStore.deleteItemAsync("refreshToken");
-                    await SecureStore.deleteItemAsync("username");
-                    setCheckingAuth(false);
-                    return;
-                }
-
-                const data = await response.json();
-                await SecureStore.setItemAsync("accessToken", data.accessToken);
-                await SecureStore.setItemAsync("refreshToken", data.refreshToken);
-
-                router.replace({ pathname: "/home", params: { username: storedUsername } });
-            } catch (err) {
-                setCheckingAuth(false);
-            }
-        }
-
-        autoLogin();
-    }, []);
-
-    async function handleLogin() {
+    async function handleRegister() {
         setLoading(true);
         setError(null);
 
+        if(username.trim().length < 3) {
+            setError("Username must be at least 3 characters long");
+            setLoading(false);
+            return;
+        }
+
+        if(password.length < 8) {
+            setError("Password must be at least 8 characters long");
+            setLoading(false);
+            return;
+        }
+
         try {
-            const response = await fetch(`${API_URL}/login`, {
+            const response = await fetch(`${API_URL}/register`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username: username, password: password }),
@@ -65,7 +38,7 @@ export default function Index() {
 
             if (!response.ok) {
                 const data = await response.json();
-                setError(data.message ?? "Login failed");
+                setError(data.message ?? "Registration failed");
                 return;
             }
 
@@ -92,25 +65,20 @@ export default function Index() {
         setError(null);
     }
 
-    if (checkingAuth) {
-        return (
-            <SafeAreaView style={[styles.container, {justifyContent: "center"}]} >
-                <ActivityIndicator color="#22C55E" size="large" />
-            </SafeAreaView>
-        );
-    }
-
     const isFormEmpty = username.trim().length === 0 || password.length === 0;
 
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.title}>Workouts</Text>
-                <Text style={styles.subTitle}>Login</Text>
+                <Text style={styles.subTitle}>Register</Text>
             </View>
 
             <View style={styles.formWrapper}>
                 <View style={styles.form}>
+                    <View style={styles.field}>
+                        <Text style={styles.registerText}>Join Workouts and start training</Text>
+                    </View>
                     <View style={styles.field}>
                         <Text style={styles.inputText}>Username</Text>
                         <TextInput style={styles.input} placeholder="Enter your username" placeholderTextColor="#666666" value={username} onChangeText={handleUsernameChange} />
@@ -123,13 +91,13 @@ export default function Index() {
                 </View>
                 <Pressable
                     disabled={loading || isFormEmpty}
-                    onPress={handleLogin}
+                    onPress={handleRegister}
                     style={({ pressed }) => [
                         styles.button,
                         (loading || isFormEmpty) && styles.buttonDisabled,
                         pressed && styles.buttonPressed,
-                ]}>
-                    <Text style={styles.buttonText}>{loading ? "Logging in..." : "Login"}</Text>
+                    ]}>
+                    <Text style={styles.buttonText}>{loading ? "Registering account..." : "Register"}</Text>
                 </Pressable>
 
                 {error && <Text style={styles.errorText}>{error}</Text> }
@@ -138,9 +106,9 @@ export default function Index() {
 
             <View style={styles.footer}>
                 <Text style={styles.footerText}>
-                    Don't have an account? {' '}
-                    <Text style={styles.footerLink} onPress={() => router.push({ pathname: "/register" })}>
-                        Sign up
+                    Already have an account? {' '}
+                    <Text style={styles.footerLink} onPress={() => router.back()}>
+                        Login
                     </Text>
                 </Text>
             </View>
@@ -226,6 +194,12 @@ const styles = StyleSheet.create({
         color: "#EF4444",
         marginTop: 16,
         textAlign: "center",
+    },
+    registerText: {
+        fontSize: 24,
+        marginBottom: 8,
+        fontWeight: "bold",
+        color: "#A0A0A0",
     },
     buttonDisabled: {
         opacity: 0.4,
