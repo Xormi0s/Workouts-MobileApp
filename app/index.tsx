@@ -1,6 +1,6 @@
-import {Pressable, StyleSheet, Text, TextInput, View} from "react-native";
+import {ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View} from "react-native";
 import {SafeAreaView} from "react-native-safe-area-context";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import * as SecureStore from "expo-secure-store";
 import {router} from "expo-router";
 
@@ -11,6 +11,46 @@ export default function Index() {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [checkingAuth, setCheckingAuth] = useState<boolean>(true);
+
+    useEffect(() => {
+
+        async function autoLogin(){
+            const storedRefreshToken = await SecureStore.getItemAsync("refreshToken");
+            const storedUsername = await SecureStore.getItemAsync("username");
+
+            if(!storedRefreshToken || !storedUsername){
+                setCheckingAuth(false);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/refresh`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ refreshToken: storedRefreshToken }),
+                });
+
+                if(!response.ok) {
+                    await SecureStore.deleteItemAsync("accessToken");
+                    await SecureStore.deleteItemAsync("refreshToken");
+                    await SecureStore.deleteItemAsync("username");
+                    setCheckingAuth(false);
+                    return;
+                }
+
+                const data = await response.json();
+                await SecureStore.setItemAsync("accessToken", data.accessToken);
+                await SecureStore.setItemAsync("refreshToken", data.refreshToken);
+
+                router.replace({ pathname: "/home", params: { username: storedUsername } });
+            } catch (err) {
+                setCheckingAuth(false);
+            }
+        }
+
+        autoLogin();
+    }, []);
 
     async function handleLogin() {
         setLoading(true);
@@ -32,6 +72,7 @@ export default function Index() {
             const data = await response.json();
             await SecureStore.setItemAsync("accessToken", data.accessToken);
             await SecureStore.setItemAsync("refreshToken", data.refreshToken);
+            await SecureStore.setItemAsync("username", username);
 
             router.replace({ pathname: "/home", params: { username } });
         } catch(err) {
@@ -49,6 +90,14 @@ export default function Index() {
     function handlePasswordChange(text: string) {
         setPassword(text);
         setError(null);
+    }
+
+    if (checkingAuth) {
+        return (
+            <SafeAreaView style={[styles.container, {justifyContent: "center"}]} >
+                <ActivityIndicator color="#22C55E" size="large" />
+            </SafeAreaView>
+        );
     }
 
     return (
